@@ -1,0 +1,57 @@
+version: "3"
+
+services:
+  database:
+    build:
+      context: "./bin/${DATABASE}"
+    container_name: '${COMPOSE_PROJECT_NAME}-database'
+    restart: 'always'
+    volumes: 
+      - ${MYSQL_DATA_DIR-./data/mysql}:/var/lib/mysql
+      - ${MYSQL_LOG_DIR-./logs/mysql}:/var/log/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+  webserver:
+    build: 
+      args:
+        user: prevention
+        uid: 1002
+      context: .
+      dockerfile: ./bin/${PHPVERSION}/Dockerfile
+    container_name: '${COMPOSE_PROJECT_NAME}-${PHPVERSION}'
+    restart: 'unless-stopped'
+    user: "prevention:www-data"
+    depends_on: 
+      - database
+      - adminer
+    links: 
+      - database
+    volumes: 
+      - /var/www/html/storage
+      - ${PHP_INI-./config/php/php.ini}:/usr/local/etc/php/php.ini
+      - ${VHOSTS_DIR-./config/vhosts}:/etc/apache2/sites-enabled
+      - ${LOG_DIR-./logs/apache2}:/var/log/apache2
+    environment:
+      PMA_PORT: ${HOST_MACHINE_PMA_PORT}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_DATABASE: ${MYSQL_DATABASE}
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - 8000:80
+  adminer:
+    image: adminer
+    restart: always
+    container_name: '${COMPOSE_PROJECT_NAME}-phpmyadmin'
+    links:
+      - database
+    ports:
+      - 8080:8080
+networks:
+  prevention-network:
+    driver: bridge
